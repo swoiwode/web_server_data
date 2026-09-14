@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>%BOARD_HOSTNAME%</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background-color: #f4f4f9; }
+    .container { max-width: 450px; margin: auto; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    .btn { border: none; color: white; padding: 15px 32px; font-size: 16px; margin: 10px; cursor: pointer; border-radius: 4px; width: 80%; transition: 0.2s; }
+    .btn-on { background-color: #4CAF50; }
+    .btn-on:hover { background-color: #45a049; }
+    .btn-off { background-color: #f44336; }
+    .btn-off:hover { background-color: #da190b; }
+    .section { margin-top: 30px; padding-top: 20px; text-align: left; }
+    ul { list-style-type: none; padding: 0; }
+    li { padding: 8px 0; }
+    li a { color: #0000EE; text-decoration: underline; font-weight: bold; }
+    li a:hover { color: #00008B; }
+    li a.visited { color: #551A8B; }
+    /* --- Terminal / Display Styles --- */
+    .terminal-box { border-top: none; margin-top: 25px; padding-top: 20px; text-align: left; }
+    .terminal-input-row { display: flex; gap: 8px; margin-top: 10px; }
+    .terminal-input { flex-grow: 1; padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; }
+    .btn-send { background-color: #007BFF; width: auto; margin: 0; padding: 10px 20px; font-size: 14px; }
+    .btn-send:hover { background-color: #0056b3; }
+    /* --- Modern File Upload Container Styles --- */
+    .upload-zone { border: 1px solid #ccc; border-style: dashed; border-radius: 4px; padding: 10px; text-align: center; background: #fafafa; cursor: pointer; transition: 0.3s; flex-grow: 1; display: flex; align-items: center; justify-content: center; }
+    .upload-zone:hover { border-color: #007BFF; background: #f0f7ff; }
+    .upload-status { font-size: 12px; font-weight: bold; color: #555; margin-top: 8px; text-align: left; word-break: break-all; }
+    
+    /* --- Dedicated Scrollable Output Styles --- */
+    .scroll-output-box {
+      margin-top: 5px;
+      padding: 10px;
+      background: #f0f4f8;
+      border-left: 4px solid #007BFF;
+      border-radius: 4px;
+      text-align: left;
+      font-size: 14px;
+      margin-bottom: 5px;
+      margin-left: 0px;
+      width: 427px;
+      height: 310px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2 style="margin-top: 0px; margin-bottom: 0px;">%BOARD_HOSTNAME%</h2>
+
+    <!-- Live Input/Output Section -->
+    <div style="padding-top: 5px; margin-top: 5px;" class="terminal-box">
+      <div style="margin-left: 0px; margin-top: 5px; margin-bottom: 5px;" class="terminal-input-row">
+        <input style="margin-left: 0px; width: 224px; height: 20px;" type="text" id="userInput" class="terminal-input" placeholder="Input command...">
+        <button style="border-radius: 4px; margin: 0px; margin-left: 0px; margin-right: 0px; height: 42px;" class="btn btn-send" onclick="sendTerminalData()">Send</button>
+      </div>
+    </div>
+
+    <!-- Original Output display block -->
+    <div style="margin-left: 0px; margin-right: 0px; margin-top: 5px; padding-top: 0px;" class="terminal-box">
+      <div style="margin-top: 5px; padding: 10px; background: #e7ffcd; border-left: 4px solid #00ff00; border-radius: 4px; text-align: left; font-size: 14px; margin-bottom: 5px; margin-left: 0px; width: 427px;">
+        <span id="liveCounter">0</span>
+      </div>
+    </div>
+
+    <!-- Integrated Async SD Card Upload Zone -->
+    <div style="margin-top: 5px; padding-top: 0px;" class="terminal-box">
+      <div style="display: flex; gap: 8px; align-items: stretch; margin-top: 10px;">
+        <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+          <span style="font-size: 14px; font-weight: bold; color: #555;">Click or Drag File to Upload to SD</span>
+          <input type="file" id="fileInput" style="display:none" onchange="uploadSDFile()">
+        </div>
+        <a href="/sd_files" target="_blank" style="padding: 0; background-color: #28a745; color: white; text-decoration: none; font-family: Arial; border-radius: 4px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-size: 14px; width: 73px; text-align: center; font-weight: bold; white-space: nowrap; height: 42px;">
+          SD files
+        </a>
+      </div>
+      <div id="uploadStatus" class="upload-status"></div>
+    </div>
+    
+    <!-- NEW Separate Scrollable Log block -->
+    <div style="margin-left: 0px; margin-right: 0px; margin-top: 5px; padding-top: 0px;" class="terminal-box">
+      <div id="liveScrollLog" class="scroll-output-box">Waiting for system logs...</div>
+    </div>
+  </div>
+
+  <script>
+    const logBox = document.getElementById("liveScrollLog");
+    const MAX_LINES = 250; 
+    let isFirstEvent = true;
+
+    // Establish connection to the ESP32 Event Stream
+    const eventSource = new EventSource('/events');
+    eventSource.onopen = function(e) { console.log("Live stream connection opened."); };
+    eventSource.onerror = function(e) { if (e.target.readyState == EventSource.CLOSED) { console.log("Live stream connection closed."); } };
+
+  
+    // =========================================================================
+    // CHANNEL 1: Handles the static live counter display ONLY
+    // =========================================================================
+    eventSource.addEventListener('output_update', function(e) {
+      document.getElementById("liveCounter").innerText = e.data;
+    }, false);
+
+    // =========================================================================
+    // CHANNEL 2: Handles your independent, rolling 250-line log window ONLY
+    // =========================================================================
+    eventSource.addEventListener('log_update', function(e) {
+      // 1. Check for the specific backend clear trigger hook
+      if (e.data.includes("[CLEAR_LOG_TRIGGER]")) {
+        logBox.innerText = "";
+        isFirstEvent = true;
+        console.log("Dedicated log channel cleared.");
+        return; 
+      }
+
+      // 2. Append incoming telemetry directly into the log box layout
+      if (isFirstEvent || logBox.innerText === "Waiting for system logs...") {
+        logBox.innerText = e.data;
+        isFirstEvent = false;
+      } else {
+        logBox.innerText += "\n" + e.data;
+      }
+
+      // 3. Queue Management: Enforce strict 250 line limit maximum
+      let lines = logBox.innerText.split("\n");
+      if (lines.length > MAX_LINES) {
+        lines = lines.slice(lines.length - MAX_LINES);
+        logBox.innerText = lines.join("\n");
+      }
+
+      // 4. Force anchor scroll perspective straight to the absolute bottom row
+      logBox.scrollTop = logBox.scrollHeight;
+    }, false);
+  
+  
+  
+  
+  
+    // Logic to handle LED toggles
+    function sendAction(state) {
+      fetch('/led?state=' + state).then(response => response.text()).then(data => console.log(data));
+    }
+
+    // Logic to handle Interactive Terminal Inputs
+    function sendTerminalData() {
+      const inputField = document.getElementById("userInput");
+      const inputVal = inputField.value.trim();
+      if (!inputVal) return;
+      fetch('/update?value=' + encodeURIComponent(inputVal))
+        .then(response => response.text())
+        .then(data => {
+          inputField.value = "";
+        })
+        .catch(err => {
+          console.error('Error:', err);
+        });
+    }
+
+    document.getElementById("userInput").addEventListener("keypress", function(event) {
+      if (event.key === "Enter") { sendTerminalData(); }
+    });
+
+    // --- Async Multipart File Upload Logic with Overwrite Warning ---
+    function uploadSDFile() {
+      const fileInput = document.getElementById('fileInput');
+      const statusDiv = document.getElementById('uploadStatus');
+      if (fileInput.files.length === 0) return;
+
+      const file = fileInput.files[0];
+
+      fetch('/check-file?name=' + encodeURIComponent(file.name))
+        .then(response => response.text())
+        .then(exists => {
+          if (exists === "true") {
+            const confirmOverwrite = confirm(`The file "${file.name}" already exists on the SD Card. Do you want to overwrite it?`);
+            if (!confirmOverwrite) {
+              statusDiv.style.color = "#ff9800";
+              statusDiv.innerText = "Upload canceled.";
+              fileInput.value = "";
+              return;
+            }
+          }
+          executeMultipartUpload(file, statusDiv, fileInput);
+        })
+        .catch(err => {
+          statusDiv.style.color = "#f44336";
+          statusDiv.innerText = `Pre-check failure: ${err.message}`;
+        });
+    }
+
+    function executeMultipartUpload(file, statusDiv, fileInput) {
+      const formData = new FormData();
+      formData.append("file", file, "/" + file.name);
+
+      statusDiv.style.color = "#007BFF";
+      statusDiv.innerText = `Uploading: ${file.name}...`;
+
+      fetch('/upload', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => {
+        if (response.ok) {
+          statusDiv.style.color = "#28a745";
+          statusDiv.innerText = `Success: ${file.name} saved to SD.`;
+        } else {
+          throw new Error("Server rejected or failed processing.");
+        }
+        fileInput.value = "";
+      })
+      .catch(err => {
+        statusDiv.style.color = "#f44336";
+        statusDiv.innerText = `Upload Failed: ${err.message}`;
+        fileInput.value = "";
+      });
+    }
+
+    // Support simple Drag & Drop mechanics directly on the drop zone
+    const dropZone = document.querySelector('.upload-zone');
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => { e.preventDefault(); dropZone.style.borderColor = '#007BFF'; }, false);
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => { e.preventDefault(); dropZone.style.borderColor = '#ccc'; }, false);
+    });
+    dropZone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      document.getElementById('fileInput').files = dt.files;
+      uploadSDFile();
+    });
+  </script>
+</body>
+</html>
