@@ -49,9 +49,9 @@ Adafruit_BME280 bme;
 
 void setup() {
   Serial.begin(115200);
-  while(!Serial) {
-    delay(10);
-  }
+  // while(!Serial) {
+  //  delay(10);
+  // }
   
   // Needs some delay to enable initial Serial.printf, 1000 is not enough
   delay(2000);
