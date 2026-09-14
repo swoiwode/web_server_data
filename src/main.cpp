@@ -8,7 +8,7 @@
 #include <SPI.h>
 #include <SD.h>
 #include <time.h>
-// change for git
+
 #include "webpage_routes.h"
 
 const char* ssid = "eero_JELP";
