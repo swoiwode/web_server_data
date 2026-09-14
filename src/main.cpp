@@ -19,7 +19,7 @@ AsyncWebServer server(80);
 // 1. Declare the Event Source stream endpoint globally
 AsyncEventSource events("/events");
 unsigned long last_time = 0;
-int global_counter = 0;
+
 char output_buffer[256] = "Hello, World!"; // Buffer for incoming data
 // Global variables for thread communication
 volatile bool new_value_available = false;
@@ -30,6 +30,10 @@ String input_data = "";
 const char* local_ntp = "10.0.0.1";   // Local gateway/NTP server IP
 struct tm timeinfo;
 char timestamp[64];
+
+unsigned long last_update_time = 0;
+int seconds_since_last_save = 0;
+const int save_interval_seconds = 60; // Set to 10 or 60 depending on preference
 
 const int led_pin = LED_BUILTIN; // Onboard LED pin
 
@@ -68,12 +72,13 @@ void setup() {
   Serial.printf(" *** SD Card Available Space: %.2f GB\n", 
     ((double)(SD.totalBytes() - SD.usedBytes()) / 1e9)
   );
-
+ 
   if (!LittleFS.begin()) {
     Serial.printf("An error occurred while mounting LittleFS\n");
     return;
   }
   Serial.printf("LittleFS mounted successfully.\n");
+  load_global_counter();
 
   mcu_dir(LittleFS, "/", 3);
 
@@ -210,7 +215,7 @@ void loop() {
 
     Serial.printf("data: %s\n", input_data.c_str());
     
-    if (input_cmd == "COUNTER") {
+    if (input_cmd == "COUNTER_START") {
       global_counter = input_data.toInt();
       Serial.printf("Updated global_counter and added commas: %s\n", 
         add_commas_to_string(global_counter).c_str());
@@ -245,6 +250,10 @@ void loop() {
     } else if (input_cmd == "CLEAR") {
       Serial.printf("CLEAR\n");
       events.send("[CLEAR_LOG_TRIGGER]", "log_update", millis());
+    } else if (input_cmd == "COUNTER_SAVE") {
+      Serial.printf("COUNTER_SAVE\n");
+      save_global_counter(); // Instantly commits data to LittleFS
+      events.send("System state saved to internal flash memory.", "output_update", millis());
     } else {
       Serial.printf("Unknown command: %s\n", input_cmd.c_str());
     }

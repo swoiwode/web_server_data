@@ -95,7 +95,6 @@
     const eventSource = new EventSource('/events');
     eventSource.onopen = function(e) { console.log("Live stream connection opened."); };
     eventSource.onerror = function(e) { if (e.target.readyState == EventSource.CLOSED) { console.log("Live stream connection closed."); } };
-
   
     // =========================================================================
     // CHANNEL 1: Handles the static live counter display ONLY
@@ -134,10 +133,6 @@
       // 4. Force anchor scroll perspective straight to the absolute bottom row
       logBox.scrollTop = logBox.scrollHeight;
     }, false);
-  
-  
-  
-  
   
     // Logic to handle LED toggles
     function sendAction(state) {

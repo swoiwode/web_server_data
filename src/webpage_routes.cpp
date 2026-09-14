@@ -1,5 +1,48 @@
 #include "webpage_routes.h"
 
+
+int global_counter = 0; 
+const char* counter_file_path = "/counter.dat";
+
+void load_global_counter() {
+  if (!LittleFS.exists(counter_file_path)) {
+    Serial.println("Counter file not found. Starting from 0.");
+    global_counter = 0;
+    return;
+  }
+
+  File file = LittleFS.open(counter_file_path, FILE_READ);
+  if (!file) {
+    Serial.println("Failed to open counter file for LittleFS!");
+    return;
+  }
+
+  String content = "";
+  while (file.available()) {
+    content += (char)file.read();
+  }
+  file.close();
+
+  global_counter = content.toInt();
+  Serial.printf("Counter successfully restored from LittleFS: %d\n", global_counter);
+}
+
+void save_global_counter() {
+  File file = LittleFS.open(counter_file_path, FILE_WRITE);
+  if (!file) {
+    Serial.println("Error: Failed to open counter file for writing!");
+    return;
+  }
+
+  if (file.print(global_counter)) {
+    Serial.printf("Counter successfully saved to LittleFS: %d\n", global_counter);
+  } else {
+    Serial.println("Write failed!");
+  }
+  
+  file.close();
+}
+
 // File handle for the incoming upload stream
 static File uploadFile;
 

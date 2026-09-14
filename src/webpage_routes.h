@@ -6,6 +6,12 @@
 #include <SD.h>
 #include <esp_mac.h>
 
+extern int global_counter;
+extern const char* counter_file;
+
+void load_global_counter();
+void save_global_counter();
+
 void say_hello(void);
 void mcu_dir(fs::FS &fs, const char * dir_name, uint8_t levels);
 void webpage_serve_html(AsyncWebServerRequest *request, fs::LittleFSFS &local_filesystem);
