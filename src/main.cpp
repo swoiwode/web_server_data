@@ -74,10 +74,10 @@ void setup() {
   );
  
   if (!LittleFS.begin()) {
-    Serial.printf("An error occurred while mounting LittleFS\n");
+    Serial.println(F("An error occurred while mounting LittleFS\n"));
     return;
   }
-  Serial.printf("LittleFS mounted successfully.\n");
+  Serial.println(F("LittleFS mounted successfully."));
   load_global_counter();
 
   mcu_dir(LittleFS, "/", 3);
@@ -87,13 +87,13 @@ void setup() {
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial.printf(".");
+    Serial.println(F("."));
   }
   Serial.printf("\nWi-Fi connected, ip: %s\n", WiFi.localIP().toString().c_str());
 
   // Start mDNS Responder (Must be done AFTER Wi-Fi is connected)
   if (!MDNS.begin(ESP32_HOSTNAME)) {
-    Serial.printf("Error setting up mDNS!\n");
+    Serial.println(F("Error setting up mDNS!"));
     while(1) { delay(1000); }
   }
   Serial.printf("mDNS started, hostname: http://%s.local\n", ESP32_HOSTNAME);
@@ -165,7 +165,7 @@ void setup() {
   server.addHandler(&events);
   
   server.begin();
-  Serial.printf("HTTP Web Server running.\n");
+  Serial.println(F("HTTP Web Server running."));
 
   Serial.printf("Unique Device ID: 0x%s\n", get_unique_id().c_str());
 
@@ -223,11 +223,11 @@ void loop() {
       input_data.toUpperCase();
       if (input_data == "ON") {
         // do action
-        Serial.printf("Turning LED ON\n");
+        Serial.println(F("Turning LED ON"));
         digitalWrite(led_pin, HIGH);
       } else if (input_data == "OFF") {
         // do action
-        Serial.printf("Turning LED OFF\n");
+        Serial.println(F("Turning LED OFF"));
         digitalWrite(led_pin, LOW);
       }
     } else if (input_cmd == "SD_DELETE") {
@@ -237,21 +237,21 @@ void loop() {
       Serial.printf("SD Deleted %s\n", del_file.c_str());
     } else if (input_cmd == "SD_MOUNT") {
         init_sd(SD_CS);
-        Serial.printf("SD Card mounted\n");
+        Serial.println(F("SD Card mounted"));
         Serial.printf(" *** SD Card Available Space: %.2f GB\n", 
           ((double)(SD.totalBytes() - SD.usedBytes()) / 1e9)
           );
     } else if (input_cmd == "SD_REMOVE") {
         SD.end(); // Unmount the SD card
-        Serial.printf("SD Card can be removed\n");
+        Serial.println(F("SD Card can be removed"));
         Serial.printf(" *** SD Card Available Space: %.2f GB\n", 
           ((double)(SD.totalBytes() - SD.usedBytes()) / 1e9)
           );
     } else if (input_cmd == "CLEAR") {
-      Serial.printf("CLEAR\n");
+      Serial.println(F("CLEAR"));
       events.send("[CLEAR_LOG_TRIGGER]", "log_update", millis());
     } else if (input_cmd == "COUNTER_SAVE") {
-      Serial.printf("COUNTER_SAVE\n");
+      Serial.println(F("COUNTER_SAVE"));
       save_global_counter(); // Instantly commits data to LittleFS
       events.send("System state saved to internal flash memory.", "output_update", millis());
     } else {
