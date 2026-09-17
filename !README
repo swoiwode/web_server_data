@@ -4,7 +4,7 @@ and will not be displayed.
 
 ESP32 files can be  downloaded with a right-click -> 'Save link as...'
 text files are viewed with a click. Browser may block files with certain
-extentsions. Check download history if there are issues.
+extensions. Check download history if there are issues.
 
 Directory hierarchy handling is not supported, only 'root' 
 directory files shown for both ESP32 and  card.
@@ -31,13 +31,16 @@ SD_REMOVE - Allows SD card to be safely removed, unmounted.
 
 CLEAR - Clear log output box.
 
-COUNTER_SAVE - Saves the current counter value. Needs to be manual added 
-               to data directory. Or, will be created on startup and set
-               to 0.
+COUNTER_SAVE - Saves the current counter value to 'counter.dat' on LittleFS
+               partition. Will allow for continued value to continue if planned
+               power/reset occurs. Power outage not accommodated, the a user 
+               driven initiative. 'counter.dat' can be manual added 
+               to data directory, if needed. Or, a new 'counter.dat' will be 
+               created on startup and set to 0.
 
 Webpage button:
 SD files - Shows SD card files in new browser page.
 
 Last changed 2026-09-17, swoiwode
-This file is manually placed on a SD card. The LittleFS paration is
-used for the webpage HTML.
+This file is manually placed on a SD card. The LittleFS partition is used for 
+the webpage HTML.
