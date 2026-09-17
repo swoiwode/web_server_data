@@ -38,4 +38,6 @@ COUNTER_SAVE - Saves the current counter value. Needs to be manual added
 Webpage button:
 SD files - Shows SD card files in new browser page.
 
-
+Last changed 2026-09-17, swoiwode
+This file is manually placed on a SD card. The LittleFS paration is
+used for the webpage HTML.
