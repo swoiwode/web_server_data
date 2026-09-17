@@ -1,0 +1,41 @@
+New ESP32 files will be displayed on browser refresh, both uploaded
+and locally created. Files with a '.html' and '.foo' are ignored
+and will not be displayed.
+
+ESP32 files can be  downloaded with a right-click -> 'Save link as...'
+text files are viewed with a click. Browser may block files with certain
+extentsions. Check download history if there are issues.
+
+Directory hierarchy handling is not supported, only 'root' 
+directory files shown for both ESP32 and  card.
+
+There are 'trim()' and 'toUpperCase()' functions used 
+when processing the commands below, case and 
+spaces are set to a known state.
+
+Input command...:
+COUNTER:n - new value for start of counter, negative works too. 
+            Ceiling and floor values not tested.            
+
+LED:ON - Turns on LED_BUILTIN.
+
+LED:OFF - Turns off LED_BUILTIN.
+
+SD_DELETE:<filename> - Delete provided SD filename, case sensitive.  
+                       Wrong name causes no error. 'DELETE' is permanent, 
+                       be cautious.
+
+SD_MOUNT - Mounts the SD card after insertion.
+
+SD_REMOVE - Allows SD card to be safely removed, unmounted.
+
+CLEAR - Clear log output box.
+
+COUNTER_SAVE - Saves the current counter value. Needs to be manual added 
+               to data directory. Or, will be created on startup and set
+               to 0.
+
+Webpage button:
+SD files - Shows SD card files in new browser page.
+
+
