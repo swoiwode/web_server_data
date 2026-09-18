@@ -27,15 +27,13 @@ String shared_input_message = "";
 int colon_pos = 0;
 String input_cmd = "";
 String input_data = "";
-const char* local_ntp = "10.0.0.1";   // Local gateway/NTP server IP
+const char* local_ntp = "10.0.0.1"; // Local gateway/NTP server IP
 struct tm timeinfo;
 char timestamp[64];
 
 unsigned long last_update_time = 0;
 int seconds_since_last_save = 0;
 const int save_interval_seconds = 60; // Set to 10 or 60 depending on preference
-
-const int led_pin = LED_BUILTIN; // Onboard LED pin
 
 // Explicitly define the standard DevKit I2C pins
 #define I2C_SDA 23
@@ -48,247 +46,249 @@ const int led_pin = LED_BUILTIN; // Onboard LED pin
 Adafruit_BME280 bme;
 
 void setup() {
-  Serial.begin(115200);
-  // while(!Serial) {
-  //  delay(10);
-  // }
-  
-  // Needs some delay to enable initial Serial.printf, 1000 is not enough
-  delay(2000);
+    Serial.begin(115200);
+    // while(!Serial) {
+    //  delay(10);
+    // }
 
-  pinMode(led_pin, OUTPUT);
-  digitalWrite(led_pin, LOW);
-  Wire.begin(I2C_SDA, I2C_SCL);
-  SPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+    // Needs some delay to enable initial Serial.printf, 1000 is not enough
+    delay(2000);
 
-  // Address 0x76 is standard for generic modules; Adafruit modules use 0x77
-  if (!bme.begin(0x77, &Wire)) {
-    Serial.println(F("Could not find a valid BME280 sensor, check your wiring or I2C address!"));
-    while (1) delay(10);
-  }
-  Serial.println(F("BME280 Sensor successfully initialized!"));
+    // pinMode(RGB_BUILTIN, OUTPUT);
+    rgbLedWrite(RGB_BUILTIN, 8, 4, 0); // Amber
+    Wire.begin(I2C_SDA, I2C_SCL);
+    SPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
 
-  init_sd(SD_CS);
-  Serial.printf(" *** SD Card Available Space: %.2f GB\n", 
-    ((double)(SD.totalBytes() - SD.usedBytes()) / 1e9)
-  );
- 
-  if (!LittleFS.begin()) {
-    Serial.println(F("An error occurred while mounting LittleFS\n"));
-    return;
-  }
-  Serial.println(F("LittleFS mounted successfully."));
-  load_global_counter();
+    // Address 0x76 is standard for generic modules; Adafruit modules use 0x77
+    if (!bme.begin(0x77, &Wire)) {
+        rgbLedWrite(RGB_BUILTIN, 8, 0, 0); // Red
+        Serial.println(F("Could not find a valid BME280 sensor, check your wiring or I2C address!"));
+        while (1)
+            delay(10);
+    }
+    Serial.println(F("BME280 Sensor successfully initialized!"));
 
-  mcu_dir(LittleFS, "/", 3);
+    init_sd(SD_CS);
+    Serial.printf(" *** SD Card Available Space: %.2f GB\n",
+                  ((double)(SD.totalBytes() - SD.usedBytes()) / 1e9));
 
-  // Connect to Wi-Fi
-  Serial.printf("Connecting to %s ", ssid);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(F("."));
-  }
-  Serial.printf("\nWi-Fi connected, ip: %s\n", WiFi.localIP().toString().c_str());
+    if (!LittleFS.begin()) {
+        rgbLedWrite(RGB_BUILTIN, 8, 0, 0); // Red
+        Serial.println(F("An error occurred while mounting LittleFS\n"));
+        return;
+    }
+    Serial.println(F("LittleFS mounted successfully."));
+    load_global_counter();
 
-  // Start mDNS Responder (Must be done AFTER Wi-Fi is connected)
-  if (!MDNS.begin(ESP32_HOSTNAME)) {
-    Serial.println(F("Error setting up mDNS!"));
-    while(1) { delay(1000); }
-  }
-  Serial.printf("mDNS started, hostname: http://%s.local\n", ESP32_HOSTNAME);
+    mcu_dir(LittleFS, "/", 3);
 
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-      webpage_serve_html(request, LittleFS);
-  });
+    // Connect to Wi-Fi
+    Serial.printf("Connecting to %s ", ssid);
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(F("."));
+    }
+    Serial.printf("\nWi-Fi connected, ip: %s\n", WiFi.localIP().toString().c_str());
 
-  webpage_led(server, led_pin);
-
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-      request->send(LittleFS, "/index.html", "text/html");
-  });
-
-  server.on("/sd_files", HTTP_GET, handle_sd_files);
-
-  server.on("/files", HTTP_GET, [](AsyncWebServerRequest *request) {
-    webpage_file_list(request, LittleFS);
-  });
-
-  server.on("/view", HTTP_GET, [](AsyncWebServerRequest *request){
-    if (request->hasParam("file")) {
-      String file_path = request->getParam("file")->value();
-      
-      if (SD.exists(file_path)) {
-        // 1. Prepare the response stream directly from the SD card.
-        // Leaving the 3rd parameter empty lets the server auto-detect text/images/code.
-        AsyncWebServerResponse *response = request->beginResponse(SD, file_path, String());
-        
-        // 2. Extract just the raw file name (removing any leading slash)
-        String clean_name = file_path;
-        if (clean_name.startsWith("/")) {
-          clean_name = clean_name.substring(1);
+    // Start mDNS Responder (Must be done AFTER Wi-Fi is connected)
+    if (!MDNS.begin(ESP32_HOSTNAME)) {
+        rgbLedWrite(RGB_BUILTIN, 8, 0, 0); // Red
+        Serial.println(F("Error setting up mDNS!"));
+        while (1) {
+            delay(1000);
         }
-        
-        // 3. THE FIX: Force the browser to read the real filename on right-click save
-        // "inline" means it still displays perfectly inside the new browser window
-        response->addHeader("Content-Disposition", "inline; filename=\"" + clean_name + "\"");
-        
-        // 4. Send the configured response payload out
-        request->send(response);
-        return;
-      } else {
-        request->send(404, "text/plain", "File Not Found on SD Card");
-        return;
-      }
     }
-    request->send(400, "text/plain", "Bad Request: Missing 'file' parameter");
-  });
+    Serial.printf("mDNS started, hostname: http://%s.local\n", ESP32_HOSTNAME);
 
-  init_webpage_routes(server, SD, LittleFS);
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
+        webpage_serve_html(request, LittleFS);
+    });
 
-  server.serveStatic("/", LittleFS, "/");
+    webpage_led(server, LED_BUILTIN);
 
-  server.on("/update", HTTP_GET, [](AsyncWebServerRequest *request){
-    String response_message = "No content data received";
-    
-    if (request->hasParam("value")) {
-      // 1. Save data to global variable
-      shared_input_message = request->getParam("value")->value(); 
-      // 2. Set flag to true
-      new_value_available = true;                                  
-      
-      response_message = "ESP32 received: " + shared_input_message;
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send(LittleFS, "/index.html", "text/html");
+    });
+
+    server.on("/sd_files", HTTP_GET, handle_sd_files);
+
+    server.on("/files", HTTP_GET, [](AsyncWebServerRequest* request) {
+        webpage_file_list(request, LittleFS);
+    });
+
+    server.on("/view", HTTP_GET, [](AsyncWebServerRequest* request) {
+        if (request->hasParam("file")) {
+            String file_path = request->getParam("file")->value();
+
+            if (SD.exists(file_path)) {
+                // 1. Prepare the response stream directly from the SD card.
+                // Leaving the 3rd parameter empty lets the server auto-detect text/images/code.
+                AsyncWebServerResponse* response = request->beginResponse(SD, file_path, String());
+
+                // 2. Extract just the raw file name (removing any leading slash)
+                String clean_name = file_path;
+                if (clean_name.startsWith("/")) {
+                    clean_name = clean_name.substring(1);
+                }
+
+                // 3. THE FIX: Force the browser to read the real filename on right-click save
+                // "inline" means it still displays perfectly inside the new browser window
+                response->addHeader("Content-Disposition", "inline; filename=\"" + clean_name + "\"");
+
+                // 4. Send the configured response payload out
+                request->send(response);
+                return;
+            } else {
+                request->send(404, "text/plain", "File Not Found on SD Card");
+                return;
+            }
+        }
+        request->send(400, "text/plain", "Bad Request: Missing 'file' parameter");
+    });
+
+    init_webpage_routes(server, SD, LittleFS);
+
+    server.serveStatic("/", LittleFS, "/");
+
+    server.on("/update", HTTP_GET, [](AsyncWebServerRequest* request) {
+        String response_message = "No content data received";
+
+        if (request->hasParam("value")) {
+            // 1. Save data to global variable
+            shared_input_message = request->getParam("value")->value();
+            // 2. Set flag to true
+            new_value_available = true;
+
+            response_message = "ESP32 received: " + shared_input_message;
+        }
+        request->send(200, "text/plain", response_message);
+    });
+
+    server.addHandler(&events);
+
+    server.begin();
+    Serial.println(F("HTTP Web Server running."));
+
+    Serial.printf("Unique Device ID: 0x%s\n", get_unique_id().c_str());
+
+    // Point directly to your local gateway IP address
+    configTime(0, 0, local_ntp);
+    // This string explicitly defines "PST" for standard and "PDT" for daylight savings
+    setenv("TZ", "PST8PDT,M3.2.0,M11.1.0", 1);
+    tzset();
+
+    if (getLocalTime(&timeinfo)) {
+        snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d",
+                 timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+                 timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+    } else {
+        snprintf(timestamp, sizeof(timestamp), "[UNSYNCED]");
     }
-    request->send(200, "text/plain", response_message);
-  });
+    Serial.printf("ESP32 Web Server started on, %s.\n", timestamp);
 
-  server.addHandler(&events);
-  
-  server.begin();
-  Serial.println(F("HTTP Web Server running."));
+    /*
+    // 1. Create a text buffer string to hold the output
+    char formattedTime[64];
 
-  Serial.printf("Unique Device ID: 0x%s\n", get_unique_id().c_str());
+    // 2. Use strftime to convert %Z and %z into readable text inside the buffer
+    // %Z = Abbreviation (e.g. EST) | %z = Numeric offset (e.g. -0500)
+    strftime(formattedTime, sizeof(formattedTime), "%Z", &timeinfo);
 
-  // Point directly to your local gateway IP address
-  configTime(0, 0, local_ntp); 
-  // This string explicitly defines "PST" for standard and "PDT" for daylight savings
-  setenv("TZ", "PST8PDT,M3.2.0,M11.1.0", 1); 
-  tzset();
-
-  if (getLocalTime(&timeinfo)) {
-    snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d", 
-             timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
-             timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
-  } else {
-    snprintf(timestamp, sizeof(timestamp), "[UNSYNCED]");
-  }
-  Serial.printf("ESP32 Web Server started on, %s.\n", timestamp);
-
-  /*
-  // 1. Create a text buffer string to hold the output
-  char formattedTime[64]; 
-
-  // 2. Use strftime to convert %Z and %z into readable text inside the buffer
-  // %Z = Abbreviation (e.g. EST) | %z = Numeric offset (e.g. -0500)
-  strftime(formattedTime, sizeof(formattedTime), "%Z", &timeinfo);
-  
-  // 3. Now use standard printf to display the string buffer using %s
-  Serial.printf("%s\n", formattedTime);
-  */
-
-  say_hello();
+    // 3. Now use standard printf to display the string buffer using %s
+    Serial.printf("%s\n", formattedTime);
+    */
+    rgbLedWrite(RGB_BUILTIN, 0, 8, 0); // Green
+    say_hello();
 }
 
 void loop() {
-  if (new_value_available) {
-    new_value_available = false; // Reset the flag
-    shared_input_message.trim(); // Remove any leading/trailing whitespace
+    if (new_value_available) {
+        new_value_available = false; // Reset the flag
+        shared_input_message.trim(); // Remove any leading/trailing whitespace
 
-    // Serial.printf("Input command: %s\n", shared_input_message.c_str());
-    colon_pos = shared_input_message.indexOf(':');
-    input_cmd = shared_input_message.substring(0, colon_pos);
-    input_cmd.trim();
-    input_cmd.toUpperCase();
-    Serial.printf("command: %s\n", input_cmd.c_str());
-    input_data = shared_input_message.substring(colon_pos + 1);
-    input_data.trim();
+        // Serial.printf("Input command: %s\n", shared_input_message.c_str());
+        colon_pos = shared_input_message.indexOf(':');
+        input_cmd = shared_input_message.substring(0, colon_pos);
+        input_cmd.trim();
+        input_cmd.toUpperCase();
+        Serial.printf("command: %s\n", input_cmd.c_str());
+        input_data = shared_input_message.substring(colon_pos + 1);
+        input_data.trim();
 
-    Serial.printf("data: %s\n", input_data.c_str());
-    
-    if (input_cmd == "COUNTER_START") {
-      global_counter = input_data.toInt();
-      Serial.printf("Updated global_counter and added commas: %s\n", 
-        add_commas_to_string(global_counter).c_str());
-    } else if (input_cmd == "LED") {
-      input_data.toUpperCase();
-      if (input_data == "ON") {
-        // do action
-        Serial.println(F("Turning LED ON"));
-        digitalWrite(led_pin, HIGH);
-      } else if (input_data == "OFF") {
-        // do action
-        Serial.println(F("Turning LED OFF"));
-        digitalWrite(led_pin, LOW);
-      }
-    } else if (input_cmd == "SD_DELETE") {
-      String del_file = "/" + input_data;
-      Serial.printf("Deleting SD Card file: %s\n", del_file.c_str());
-       SD.remove(del_file);
-      Serial.printf("SD Deleted %s\n", del_file.c_str());
-    } else if (input_cmd == "SD_MOUNT") {
-        init_sd(SD_CS);
-        Serial.println(F("SD Card mounted"));
-        Serial.printf(" *** SD Card Available Space: %.2f GB\n", 
-          ((double)(SD.totalBytes() - SD.usedBytes()) / 1e9)
-          );
-    } else if (input_cmd == "SD_REMOVE") {
-        SD.end(); // Unmount the SD card
-        Serial.println(F("SD Card can be removed"));
-        Serial.printf(" *** SD Card Available Space: %.2f GB\n", 
-          ((double)(SD.totalBytes() - SD.usedBytes()) / 1e9)
-          );
-    } else if (input_cmd == "CLEAR") {
-      Serial.println(F("CLEAR"));
-      events.send("[CLEAR_LOG_TRIGGER]", "log_update", millis());
-    } else if (input_cmd == "COUNTER_SAVE") {
-      Serial.println(F("COUNTER_SAVE"));
-      save_global_counter(); // Instantly commits data to LittleFS
-      events.send("System state saved to internal flash memory.", "output_update", millis());
-    } else {
-      Serial.printf("Unknown command: %s\n", input_cmd.c_str());
-    }
-  }
+        Serial.printf("data: %s\n", input_data.c_str());
 
-  // Send a non-blocking background update to all clients every 1 second
-  if ((millis() - last_time) > 1000) {
-    last_time = millis();
+        if (input_cmd == "COUNTER_START") {
+            global_counter = input_data.toInt();
+            Serial.printf("Updated global_counter and added commas: %s\n",
+                          add_commas_to_string(global_counter).c_str());
+        } else if (input_cmd == "LED") {
+            input_data.toUpperCase();
+            if (input_data == "ON") {
+                // do action
+                Serial.println(F("Turning LED ON"));
+                rgbLedWrite(RGB_BUILTIN, 33, 32, 32); // White
 
-    if (getLocalTime(&timeinfo)) {
-      snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d", 
-              timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
-              timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
-    } else {
-      snprintf(timestamp, sizeof(timestamp), "[UNSYNCED]");
+            } else if (input_data == "OFF") {
+                // do action
+                Serial.println(F("Turning LED OFF"));
+                rgbLedWrite(RGB_BUILTIN, 0, 8, 0); // Green
+            }
+        } else if (input_cmd == "SD_DELETE") {
+            String del_file = "/" + input_data;
+            Serial.printf("Deleting SD Card file: %s\n", del_file.c_str());
+            SD.remove(del_file);
+            Serial.printf("SD Deleted %s\n", del_file.c_str());
+        } else if (input_cmd == "SD_MOUNT") {
+            init_sd(SD_CS);
+            Serial.println(F("SD Card mounted"));
+            Serial.printf(" *** SD Card Available Space: %.2f GB\n",
+                          ((double)(SD.totalBytes() - SD.usedBytes()) / 1e9));
+        } else if (input_cmd == "SD_REMOVE") {
+            SD.end(); // Unmount the SD card
+            Serial.println(F("SD Card can be removed"));
+            Serial.printf(" *** SD Card Available Space: %.2f GB\n",
+                          ((double)(SD.totalBytes() - SD.usedBytes()) / 1e9));
+        } else if (input_cmd == "CLEAR") {
+            Serial.println(F("CLEAR"));
+            events.send("[CLEAR_LOG_TRIGGER]", "log_update", millis());
+        } else if (input_cmd == "COUNTER_SAVE") {
+            Serial.println(F("COUNTER_SAVE"));
+            save_global_counter(); // Instantly commits data to LittleFS
+            events.send("System state saved to internal flash memory.", "output_update", millis());
+        } else {
+            Serial.printf("Unknown command: %s\n", input_cmd.c_str());
+        }
     }
 
-    snprintf(output_buffer, sizeof(output_buffer), 
-      "%s, 0x%s, SD: %.2f GB",
-      timestamp,
-      get_unique_id().c_str(),
-      ((double)(SD.totalBytes() - SD.usedBytes()) / 1e9)
-    );
-    events.send(String(output_buffer).c_str(), "output_update", millis());
-    
-    snprintf(output_buffer, sizeof(output_buffer), 
-      "%s \t\t%.2f °C, \t\t%.2f %%, \t\t%.2f hPa",
-      format_with_commas(global_counter).c_str(),
-      bme.readTemperature(),
-      bme.readHumidity(),
-      bme.readPressure() / 100.0F
-    );
-    events.send(String(output_buffer).c_str(), "log_update", millis());
+    // Send a non-blocking background update to all clients every 1 second
+    if ((millis() - last_time) > 1000) {
+        last_time = millis();
 
-    // Serial.printf("%s\n", output_buffer);
-    global_counter++;
-  }
+        if (getLocalTime(&timeinfo)) {
+            snprintf(timestamp, sizeof(timestamp), "%04d-%02d-%02d %02d:%02d:%02d",
+                     timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+                     timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+        } else {
+            snprintf(timestamp, sizeof(timestamp), "[UNSYNCED]");
+        }
+
+        snprintf(output_buffer, sizeof(output_buffer),
+                 "%s, 0x%s, SD: %.2f GB",
+                 timestamp,
+                 get_unique_id().c_str(),
+                 ((double)(SD.totalBytes() - SD.usedBytes()) / 1e9));
+        events.send(String(output_buffer).c_str(), "output_update", millis());
+
+        snprintf(output_buffer, sizeof(output_buffer),
+                 "%s \t\t%.2f °C, \t\t%.2f %%, \t\t%.2f hPa",
+                 format_with_commas(global_counter).c_str(),
+                 bme.readTemperature(),
+                 bme.readHumidity(),
+                 bme.readPressure() / 100.0F);
+        events.send(String(output_buffer).c_str(), "log_update", millis());
+
+        // Serial.printf("%s\n", output_buffer);
+        global_counter++;
+    }
 }

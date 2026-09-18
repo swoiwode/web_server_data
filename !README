@@ -1,13 +1,18 @@
-New ESP32 files will be displayed on browser refresh, both uploaded
-and locally created. Files with a '.html' and '.foo' are ignored
-and will not be displayed.
+Last changed 2026-09-17, swoiwode
+This file is manually placed on a SD card. The LittleFS partition is used for 
+webpage HTML hosting and, potentially, a 'content.dat' file.
 
-ESP32 files can be  downloaded with a right-click -> 'Save link as...'
+Webpage button, 'SD files' - Shows SD card files in new browser page.
+
+New SD card files will be displayed on browser refresh, both uploaded
+and locally created.
+
+SD card files can be downloaded with a right-click -> 'Save link as...'
 text files are viewed with a click. Browser may block files with certain
 extensions. Check download history if there are issues.
 
 Directory hierarchy handling is not supported, only 'root' 
-directory files shown for both ESP32 and  card.
+directory files shown on the SD card.
 
 There are 'trim()' and 'toUpperCase()' functions used 
 when processing the commands below, case and 
@@ -37,10 +42,3 @@ COUNTER_SAVE - Saves the current counter value to 'counter.dat' on LittleFS
                driven initiative. 'counter.dat' can be manual added 
                to data directory, if needed. Or, a new 'counter.dat' will be 
                created on startup and set to 0.
-
-Webpage button:
-SD files - Shows SD card files in new browser page.
-
-Last changed 2026-09-17, swoiwode
-This file is manually placed on a SD card. The LittleFS partition is used for 
-the webpage HTML.
