@@ -2,6 +2,13 @@
 
 int global_counter = 0;
 const char* counter_file_path = "/counter.dat";
+// File handle for the incoming upload stream
+static File uploadFile;
+
+
+void say_hello(void) {
+    Serial.printf("Hello, World!\n");
+}
 
 void load_global_counter() {
     if (!LittleFS.exists(counter_file_path)) {
@@ -41,9 +48,6 @@ void save_global_counter() {
 
     file.close();
 }
-
-// File handle for the incoming upload stream
-static File uploadFile;
 
 void init_webpage_routes(AsyncWebServer& server, fs::FS& sd_instance, fs::FS& fs_instance) {
     // Local structure definition to encapsulate request tracking state cleanly
@@ -218,10 +222,6 @@ void handle_sd_files(AsyncWebServerRequest* request) {
 
     // Ship remaining data packets to the browser
     request->send(response);
-}
-
-void say_hello(void) {
-    Serial.printf("Hello, World!\n");
 }
 
 void mcu_dir(fs::FS& fs, const char* dir_name, uint8_t levels) {

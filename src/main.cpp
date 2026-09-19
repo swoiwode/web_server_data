@@ -36,12 +36,12 @@ int seconds_since_last_save = 0;
 const int save_interval_seconds = 60; // Set to 10 or 60 depending on preference
 
 // Explicitly define the standard DevKit I2C pins
-#define I2C_SDA 23
-#define I2C_SCL 22
-#define SD_CS 18
-#define SD_SCK 19
-#define SD_MOSI 20
-#define SD_MISO 21
+#define I2C_SDA 4
+#define I2C_SCL 5
+#define SD_CS 16
+#define SD_SCK 6
+#define SD_MOSI 7
+#define SD_MISO 2
 
 Adafruit_BME280 bme;
 
@@ -68,7 +68,12 @@ void setup() {
     }
     Serial.println(F("BME280 Sensor successfully initialized!"));
 
-    init_sd(SD_CS);
+    if (!init_sd(SD_CS)) {
+        rgbLedWrite(RGB_BUILTIN, 8, 0, 0); // Red
+        Serial.println(F("SD Card initialization failed!"));
+        while (1)
+            delay(10);
+    }
     Serial.printf(" *** SD Card Available Space: %.2f GB\n",
                   ((double)(SD.totalBytes() - SD.usedBytes()) / 1e9));
 
